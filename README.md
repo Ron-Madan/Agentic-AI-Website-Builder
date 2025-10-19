@@ -73,9 +73,6 @@ src/agentic_web_app_builder/
 ## Documentation
 
 - [SETUP.md](SETUP.md) - Setup and installation guide
-- [design.md](design.md) - Original design document
-- [requirements.md](requirements.md) - System requirements
-- [tasks.md](tasks.md) - Implementation tasks
 
 ## Development
 
