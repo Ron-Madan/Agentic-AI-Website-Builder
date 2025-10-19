@@ -666,13 +666,19 @@ Generate the complete HTML code now.""")
         
         # Step 4: Real Testing phase with enhanced error handling
         project["current_phase"] = "testing"
+        project["test_status"] = "running"
         project["progress"] = 65.0
         project["last_updated"] = datetime.utcnow()
+        
+        # Add a small delay to make testing phase visible
+        await asyncio.sleep(2)
         
         html_content = project.get("generated_code", "")
         
         if html_content:
             try:
+                logger.info(f"🧪 Starting comprehensive testing for project {project_id}")
+                
                 # Use safe testing execution with comprehensive error handling
                 test_results = await _safe_testing_execution(project_id, html_content)
                 
@@ -682,7 +688,16 @@ Generate the complete HTML code now.""")
                 project["progress"] = 75.0
                 project["last_updated"] = datetime.utcnow()
                 
-                logger.info(f"Testing completed for project {project_id}: {test_results.get('test_status')}")
+                # Log detailed test results for visibility
+                total_tests = test_results.get("total_tests", 0)
+                total_passed = test_results.get("total_passed", 0)
+                total_failed = test_results.get("total_failed", 0)
+                logger.info(f"🧪 Testing completed for project {project_id}: {total_passed}/{total_tests} tests passed, {total_failed} failed")
+                
+                if test_results.get("overall_success"):
+                    logger.info(f"✅ All tests passed for project {project_id}")
+                else:
+                    logger.warning(f"⚠️ Some tests failed for project {project_id}")
                 
             except ProjectError as e:
                 # Handle testing errors gracefully
@@ -3416,6 +3431,7 @@ async def deploy_version(project_id: str, version_id: str):
                 )
                 
                 # Set up monitoring
+                logger.info(f"📊 Setting up monitoring for project {project_id} at {deployment_url}")
                 monitoring_result = await setup_monitoring(
                     project_id=project_id,
                     deployment_url=deployment_url,
@@ -3431,6 +3447,11 @@ async def deploy_version(project_id: str, version_id: str):
                         "uptime_threshold": 95.0
                     }
                 )
+                
+                if monitoring_result.get("monitoring_active"):
+                    logger.info(f"✅ Monitoring successfully set up for project {project_id}")
+                else:
+                    logger.warning(f"⚠️ Monitoring setup failed for project {project_id}: {monitoring_result.get('error', 'Unknown error')}")
                 
                 # Store monitoring configuration
                 project["monitoring_config"] = monitoring_config.model_dump()
