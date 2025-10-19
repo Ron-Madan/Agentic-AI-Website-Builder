@@ -1,0 +1,115 @@
+"""Main FastAPI application."""
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import logging
+
+from ..core.config import get_settings
+from ..core.system_integration import get_system, initialize_system, start_system, stop_system, cleanup_system
+from .routes import health, projects
+from .middleware import ErrorHandlingMiddleware, RequestValidationMiddleware, SecurityHeadersMiddleware
+
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager."""
+    settings = get_settings()
+    logger.info(f"Starting {settings.app_name} v{settings.version}")
+    logger.info(f"Environment: {settings.environment}")
+    
+    try:
+        # Initialize and start the complete system
+        logger.info("Initializing system integration")
+        system = await initialize_system()
+        
+        logger.info("Starting system components")
+        await start_system()
+        
+        # Store system reference in app state
+        app.state.system = system
+        
+        logger.info("System startup completed successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to start system: {str(e)}")
+        raise
+    
+    yield
+    
+    try:
+        logger.info("Shutting down system")
+        await stop_system()
+        await cleanup_system()
+        logger.info("System shutdown completed")
+    except Exception as e:
+        logger.error(f"Error during system shutdown: {str(e)}")
+
+
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    settings = get_settings()
+    
+    app = FastAPI(
+        title=settings.app_name,
+        version=settings.version,
+        description="An intelligent system for autonomous web application development",
+        lifespan=lifespan,
+        debug=settings.is_development()
+    )
+    
+    # Add middleware in correct order (last added is executed first)
+    app.add_middleware(ErrorHandlingMiddleware)
+    app.add_middleware(RequestValidationMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
+    
+    # Add CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"] if settings.is_development() else [],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    # Include routers
+    app.include_router(health.router, prefix="/health", tags=["health"])
+    app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
+    
+    # Import and include user input router
+    from .routes import user_input
+    app.include_router(user_input.router, prefix="/api/v1/input", tags=["user-input"])
+    
+    # Import and include approvals router
+    from .routes import approvals
+    app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["approvals"])
+    
+    # Import and include governance router
+    from .routes import governance
+    app.include_router(governance.router, prefix="/api/v1/governance", tags=["governance"])
+    
+    # Import and include workflows router
+    from .routes import workflows
+    app.include_router(workflows.router, prefix="/api/v1/workflows", tags=["workflows"])
+    
+    return app
+
+
+# Create the app instance
+app = create_app()
+
+
+@app.get("/")
+async def root():
+    """Root endpoint."""
+    settings = get_settings()
+    return {
+        "message": f"Welcome to {settings.app_name}",
+        "version": settings.version,
+        "environment": settings.environment
+    }

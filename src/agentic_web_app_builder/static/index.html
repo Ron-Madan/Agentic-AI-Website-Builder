@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Web App Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.1); }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div x-data="appData()" class="min-h-screen">
+        <!-- Navigation -->
+        <nav class="bg-white shadow-sm border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <h1 class="text-2xl font-bold text-gray-900">
+                                <i class="fas fa-robot text-blue-600 mr-2"></i>
+                                Agentic Web Builder
+                            </h1>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button @click="showProjects = !showProjects" 
+                                class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">
+                            <i class="fas fa-folder mr-1"></i>
+                            My Projects
+                        </button>
+                        <button @click="showConfig = !showConfig" 
+                                class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">
+                            <i class="fas fa-cog mr-1"></i>
+                            Config
+                        </button>
+                        <div class="text-sm text-gray-500">
+                            <i class="fas fa-circle text-green-500 mr-1"></i>
+                            System Online
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Configuration Panel -->
+        <div x-show="showConfig" class="min-h-screen bg-gray-50 py-12">
+            <div class="max-w-4xl mx-auto px-4">
+                <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
+                    <div class="gradient-bg p-8 text-white">
+                        <button @click="showConfig = false" class="float-right text-white hover:text-gray-200">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                        <h2 class="text-3xl font-bold mb-2">Configuration</h2>
+                        <p class="text-gray-200">Set up your deployment credentials for real website hosting</p>
+                    </div>
+
+                    <div class="p-8">
+                        <div class="space-y-8">
+                            <!-- Netlify Configuration -->
+                            <div class="border border-gray-200 rounded-lg p-6">
+                                <h3 class="text-xl font-semibold mb-4 flex items-center">
+                                    <i class="fas fa-globe mr-2 text-blue-600"></i>
+                                    Netlify Deployment
+                                </h3>
+                                
+                                <div class="bg-blue-50 p-4 rounded-lg mb-4">
+                                    <h4 class="font-semibold text-blue-800 mb-2">How to get your Netlify Access Token:</h4>
+                                    <ol class="list-decimal list-inside space-y-1 text-sm text-blue-700">
+                                        <li>Go to <a href="https://app.netlify.com" target="_blank" class="underline">app.netlify.com</a></li>
+                                        <li>Sign up or log in to your account</li>
+                                        <li>Go to User Settings → Applications</li>
+                                        <li>Click "New access token"</li>
+                                        <li>Give it a name like "Agentic Web Builder"</li>
+                                        <li>Copy the token and add it to your environment</li>
+                                    </ol>
+                                </div>
+
+                                <div class="bg-gray-50 p-4 rounded-lg">
+                                    <h4 class="font-semibold mb-2">Add to your environment:</h4>
+                                    <code class="block bg-gray-800 text-green-400 p-3 rounded text-sm">
+                                        export NETLIFY_ACCESS_TOKEN=your_token_here
+                                    </code>
+                                    <p class="text-sm text-gray-600 mt-2">
+                                        Or add <code>NETLIFY_ACCESS_TOKEN=your_token_here</code> to your .env file
+                                    </p>
+                                </div>
+
+                                <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                                    <p class="text-sm text-yellow-800">
+                                        <i class="fas fa-info-circle mr-1"></i>
+                                        <strong>Without a token:</strong> The system will generate demo URLs that show "Page not found" when clicked. 
+                                        With a token, your websites will be deployed to real, working Netlify URLs.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Current Status -->
+                            <div class="border border-gray-200 rounded-lg p-6">
+                                <h3 class="text-xl font-semibold mb-4 flex items-center">
+                                    <i class="fas fa-check-circle mr-2 text-green-600"></i>
+                                    Current Status
+                                </h3>
+                                
+                                <div class="space-y-3">
+                                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                                        <span class="font-medium">Local Preview</span>
+                                        <span class="text-green-600">
+                                            <i class="fas fa-check mr-1"></i>Available
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                                        <span class="font-medium">Auto-Advancement</span>
+                                        <span class="text-green-600">
+                                            <i class="fas fa-check mr-1"></i>Enabled
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                                        <span class="font-medium">Netlify Deployment</span>
+                                        <span class="text-yellow-600">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i>Demo Mode (Add token for real deployment)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hero Section -->
+        <div x-show="!showCreateForm && !showProjects && !showConfig" class="gradient-bg min-h-screen flex items-center justify-center relative overflow-hidden">
+            <!-- Floating Elements -->
+            <div class="absolute inset-0 overflow-hidden">
+                <div class="animate-float absolute top-20 left-20 w-20 h-20 bg-white bg-opacity-20 rounded-full"></div>
+                <div class="animate-float absolute top-40 right-32 w-16 h-16 bg-white bg-opacity-15 rounded-full" style="animation-delay: -2s;"></div>
+                <div class="animate-float absolute bottom-32 left-1/4 w-12 h-12 bg-white bg-opacity-10 rounded-full" style="animation-delay: -4s;"></div>
+            </div>
+            
+            <div class="text-center text-white z-10 max-w-4xl mx-auto px-4">
+                <h1 class="text-6xl font-bold mb-6 leading-tight">
+                    Build Websites with
+                    <span class="text-yellow-300">AI Agents</span>
+                </h1>
+                <p class="text-xl mb-8 text-gray-200 max-w-2xl mx-auto">
+                    Describe your dream website in plain English. Our intelligent agents will plan, code, test, and deploy it automatically.
+                </p>
+                
+                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
+                    <button @click="showCreateForm = true" 
+                            class="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg">
+                        <i class="fas fa-magic mr-2"></i>
+                        Create Your Website
+                    </button>
+                    <button @click="showProjects = true" 
+                            class="glass border border-white border-opacity-30 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white hover:bg-opacity-20 transition-all">
+                        <i class="fas fa-eye mr-2"></i>
+                        View Examples
+                    </button>
+                </div>
+
+                <!-- Features Grid -->
+                <div class="grid md:grid-cols-3 gap-8 mt-16">
+                    <div class="glass p-6 rounded-xl border border-white border-opacity-20">
+                        <i class="fas fa-brain text-3xl mb-4 text-yellow-300"></i>
+                        <h3 class="text-xl font-semibold mb-2">AI Planning</h3>
+                        <p class="text-gray-200">Smart agents analyze your requirements and create detailed execution plans</p>
+                    </div>
+                    <div class="glass p-6 rounded-xl border border-white border-opacity-20">
+                        <i class="fas fa-code text-3xl mb-4 text-green-300"></i>
+                        <h3 class="text-xl font-semibold mb-2">Auto Coding</h3>
+                        <p class="text-gray-200">Generate modern React/Tailwind code with best practices automatically</p>
+                    </div>
+                    <div class="glass p-6 rounded-xl border border-white border-opacity-20">
+                        <i class="fas fa-rocket text-3xl mb-4 text-purple-300"></i>
+                        <h3 class="text-xl font-semibold mb-2">One-Click Deploy</h3>
+                        <p class="text-gray-200">Automatic deployment to Netlify or Vercel with monitoring setup</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Project Creation Form -->
+        <div x-show="showCreateForm" class="min-h-screen bg-gray-50 py-12">
+            <div class="max-w-4xl mx-auto px-4">
+                <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
+                    <!-- Form Header -->
+                    <div class="gradient-bg p-8 text-white">
+                        <button @click="showCreateForm = false" class="float-right text-white hover:text-gray-200">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                        <h2 class="text-3xl font-bold mb-2">Create Your Website</h2>
+                        <p class="text-gray-200">Tell us what you want to build, and our AI agents will make it happen</p>
+                    </div>
+
+                    <!-- Form Content -->
+                    <div class="p-8">
+                        <form @submit.prevent="createProject()">
+                            <!-- User ID -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <i class="fas fa-user mr-1"></i>
+                                    Your Name/ID
+                                </label>
+                                <input x-model="projectForm.user_id" 
+                                       type="text" 
+                                       placeholder="Enter your name or user ID"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                       required>
+                            </div>
+
+                            <!-- Project Description -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <i class="fas fa-lightbulb mr-1"></i>
+                                    Describe Your Website
+                                </label>
+                                <textarea x-model="projectForm.description" 
+                                          rows="4" 
+                                          placeholder="Example: Create a portfolio website with sections for About, Projects, and Blog. Deploy it to Netlify with a modern design."
+                                          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                          required></textarea>
+                                <p class="text-sm text-gray-500 mt-1">Be as detailed as possible for better results</p>
+                            </div>
+
+                            <!-- Requirements -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    <i class="fas fa-list-check mr-1"></i>
+                                    Requirements (Optional)
+                                </label>
+                                <div class="space-y-2">
+                                    <template x-for="(req, index) in projectForm.requirements" :key="index">
+                                        <div class="flex items-center space-x-2">
+                                            <input x-model="projectForm.requirements[index]" 
+                                                   type="text" 
+                                                   placeholder="e.g., Responsive design"
+                                                   class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                            <button @click="projectForm.requirements.splice(index, 1)" 
+                                                    type="button" 
+                                                    class="text-red-500 hover:text-red-700">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <button @click="projectForm.requirements.push('')" 
+                                            type="button" 
+                                            class="text-blue-600 hover:text-blue-800 text-sm">
+                                        <i class="fas fa-plus mr-1"></i>
+                                        Add Requirement
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Preferences -->
+                            <div class="mb-8">
+                                <label class="block text-sm font-medium text-gray-700 mb-4">
+                                    <i class="fas fa-cog mr-1"></i>
+                                    Preferences
+                                </label>
+                                <div class="grid md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-sm text-gray-600 mb-1">Framework</label>
+                                        <select x-model="projectForm.preferences.framework" 
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                                            <option value="react">React</option>
+                                            <option value="svelte">SvelteKit</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm text-gray-600 mb-1">Styling</label>
+                                        <select x-model="projectForm.preferences.styling" 
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                                            <option value="tailwind">Tailwind CSS</option>
+                                            <option value="styled-components">Styled Components</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm text-gray-600 mb-1">Deployment</label>
+                                        <select x-model="projectForm.preferences.deployment" 
+                                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                                            <option value="netlify">Netlify</option>
+                                            <option value="vercel">Vercel</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="flex justify-end space-x-4">
+                                <button @click="showCreateForm = false" 
+                                        type="button" 
+                                        class="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                                    Cancel
+                                </button>
+                                <button type="submit" 
+                                        :disabled="isCreating"
+                                        class="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <span x-show="!isCreating">
+                                        <i class="fas fa-rocket mr-2"></i>
+                                        Create Website
+                                    </span>
+                                    <span x-show="isCreating">
+                                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                                        Creating...
+                                    </span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Projects List -->
+        <div x-show="showProjects" class="min-h-screen bg-gray-50 py-12">
+            <div class="max-w-6xl mx-auto px-4">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold text-gray-900">My Projects</h2>
+                    <button @click="showProjects = false; showCreateForm = true" 
+                            class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+                        <i class="fas fa-plus mr-2"></i>
+                        New Project
+                    </button>
+                </div>
+
+                <div x-show="projects.length === 0" class="text-center py-12">
+                    <i class="fas fa-folder-open text-6xl text-gray-300 mb-4"></i>
+                    <h3 class="text-xl font-semibold text-gray-600 mb-2">No projects yet</h3>
+                    <p class="text-gray-500 mb-6">Create your first website to get started</p>
+                    <button @click="showProjects = false; showCreateForm = true" 
+                            class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+                        Create Your First Website
+                    </button>
+                </div>
+
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <template x-for="project in projects" :key="project.project_id">
+                        <div class="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
+                            <div class="p-6">
+                                <div class="flex justify-between items-start mb-4">
+                                    <h3 class="text-lg font-semibold text-gray-900 truncate" x-text="project.description.substring(0, 50) + '...'"></h3>
+                                    <span class="px-2 py-1 text-xs rounded-full" 
+                                          :class="getStatusColor(project.status)" 
+                                          x-text="project.status"></span>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <div class="flex justify-between text-sm text-gray-600 mb-1">
+                                        <span>Progress</span>
+                                        <span x-text="project.progress_percentage + '%'"></span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-blue-600 h-2 rounded-full transition-all" 
+                                             :style="'width: ' + project.progress_percentage + '%'"></div>
+                                    </div>
+                                </div>
+
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-500" x-text="project.current_phase"></span>
+                                    <div class="space-x-2">
+                                        <button @click="viewProject(project.project_id)" 
+                                                class="text-blue-600 hover:text-blue-800">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <span x-show="project.progress_percentage < 100" class="text-xs text-gray-400">
+                                            <i class="fas fa-clock mr-1"></i>Auto-advancing...
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Project Detail Modal -->
+        <div x-show="selectedProject" 
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-2xl max-w-4xl w-full mx-4 max-h-screen overflow-y-auto">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-2xl font-bold text-gray-900">Project Details</h3>
+                        <button @click="selectedProject = null" class="text-gray-500 hover:text-gray-700">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div x-show="selectedProject" class="p-6">
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <h4 class="font-semibold text-gray-900 mb-2">Description</h4>
+                            <p class="text-gray-600 mb-4" x-text="selectedProject?.description"></p>
+                            
+                            <h4 class="font-semibold text-gray-900 mb-2">Status</h4>
+                            <div class="flex items-center space-x-2 mb-4">
+                                <span class="px-3 py-1 rounded-full text-sm" 
+                                      :class="getStatusColor(selectedProject?.status)" 
+                                      x-text="selectedProject?.status"></span>
+                                <span class="text-gray-600" x-text="selectedProject?.current_phase"></span>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h4 class="font-semibold text-gray-900 mb-2">Progress</h4>
+                            <div class="mb-4">
+                                <div class="flex justify-between text-sm text-gray-600 mb-1">
+                                    <span>Overall Progress</span>
+                                    <span x-text="selectedProject?.progress_percentage + '%'"></span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-3">
+                                    <div class="bg-blue-600 h-3 rounded-full transition-all" 
+                                         :style="'width: ' + (selectedProject?.progress_percentage || 0) + '%'"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-3 gap-4 text-center">
+                                <div>
+                                    <div class="text-2xl font-bold text-green-600" x-text="selectedProject?.completed_tasks || 0"></div>
+                                    <div class="text-sm text-gray-600">Completed</div>
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-bold text-yellow-600" x-text="selectedProject?.pending_tasks || 0"></div>
+                                    <div class="text-sm text-gray-600">Pending</div>
+                                </div>
+                                <div>
+                                    <div class="text-2xl font-bold text-red-600" x-text="selectedProject?.failed_tasks || 0"></div>
+                                    <div class="text-sm text-gray-600">Failed</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Preview Options -->
+                    <div class="mt-6 space-y-4">
+                        <!-- Local Preview (always available) -->
+                        <!-- Preview Generated Website -->
+                        <div x-show="selectedProject?.status === 'completed' || selectedProject?.progress >= 60" class="p-4 bg-blue-50 rounded-lg mb-4">
+                            <h4 class="font-semibold text-blue-800 mb-2">
+                                <i class="fas fa-eye mr-1"></i>
+                                Preview Generated Website
+                            </h4>
+                            <a :href="'/preview/' + selectedProject?.project_id" 
+                               target="_blank" 
+                               class="text-blue-600 hover:text-blue-800 underline">
+                                <i class="fas fa-external-link-alt mr-1"></i>
+                                Open Preview in New Tab
+                            </a>
+                            <p class="text-sm text-blue-700 mt-1">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                View the AI-generated website locally
+                            </p>
+                        </div>
+
+                        <!-- Live Deployment -->
+                        <div x-show="selectedProject?.deployment_url" class="p-4 bg-green-50 rounded-lg">
+                            <h4 class="font-semibold text-green-800 mb-2">
+                                <i class="fas fa-rocket mr-1"></i>
+                                Live Deployment Ready!
+                            </h4>
+                            <div class="space-y-2">
+                                <a :href="selectedProject?.deployment_url" 
+                                   target="_blank" 
+                                   class="block text-green-600 hover:text-green-800 underline">
+                                    <i class="fas fa-external-link-alt mr-1"></i>
+                                    View Live Website
+                                </a>
+                                <p class="text-sm text-green-700">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    <span x-show="selectedProject?.deployment_url?.includes('demo-')">
+                                        Demo URL (add Netlify token for real deployment)
+                                    </span>
+                                    <span x-show="!selectedProject?.deployment_url?.includes('demo-')">
+                                        Live on Netlify
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success Toast -->
+        <div x-show="showSuccess" 
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 transform translate-y-2"
+             x-transition:enter-end="opacity-100 transform translate-y-0"
+             class="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-50">
+            <div class="flex items-center">
+                <i class="fas fa-check-circle mr-2"></i>
+                <span x-text="successMessage"></span>
+            </div>
+        </div>
+
+        <!-- Error Toast -->
+        <div x-show="showError" 
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 transform translate-y-2"
+             x-transition:enter-end="opacity-100 transform translate-y-0"
+             class="fixed top-4 right-4 bg-red-500 text-white px-6 py-4 rounded-lg shadow-lg z-50">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-circle mr-2"></i>
+                <span x-text="errorMessage"></span>
+            </div>
+        </div>
+
+        <!-- Approval Modal -->
+        <div x-show="showApprovalModal" 
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-2xl max-w-2xl w-full mx-4 shadow-2xl">
+                <div class="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-2xl">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-3xl mr-3"></i>
+                            <div>
+                                <h3 class="text-2xl font-bold" x-text="currentApproval?.title"></h3>
+                                <p class="text-blue-100 text-sm">Human approval required</p>
+                            </div>
+                        </div>
+                        <span class="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-semibold">
+                            Pending
+                        </span>
+                    </div>
+                </div>
+                
+                <div x-show="currentApproval" class="p-6">
+                    <p class="text-gray-700 mb-6" x-text="currentApproval?.description"></p>
+                    
+                    <!-- Execution Plan Details -->
+                    <div x-show="currentApproval?.plan_summary" class="bg-gray-50 rounded-lg p-4 mb-6">
+                        <h4 class="font-semibold text-gray-900 mb-3">Execution Plan Summary</h4>
+                        <div class="grid md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <span class="text-gray-600">Framework:</span>
+                                <span class="font-medium ml-2" x-text="currentApproval?.plan_summary?.framework"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Styling:</span>
+                                <span class="font-medium ml-2" x-text="currentApproval?.plan_summary?.styling"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Deployment:</span>
+                                <span class="font-medium ml-2" x-text="currentApproval?.plan_summary?.deployment"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Est. Duration:</span>
+                                <span class="font-medium ml-2" x-text="currentApproval?.plan_summary?.estimated_duration"></span>
+                            </div>
+                        </div>
+                        
+                        <div x-show="currentApproval?.plan_summary?.phases" class="mt-4">
+                            <span class="text-gray-600 text-sm">Phases:</span>
+                            <div class="flex flex-wrap gap-2 mt-2">
+                                <template x-for="phase in currentApproval?.plan_summary?.phases" :key="phase">
+                                    <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm" x-text="phase"></span>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview Link for Deployment Approval -->
+                    <div x-show="currentApproval?.preview_url" class="bg-blue-50 rounded-lg p-4 mb-6">
+                        <h4 class="font-semibold text-blue-900 mb-2">
+                            <i class="fas fa-eye mr-1"></i>
+                            Preview Generated Website
+                        </h4>
+                        <a :href="currentApproval?.preview_url" 
+                           target="_blank" 
+                           class="text-blue-600 hover:text-blue-800 underline">
+                            <i class="fas fa-external-link-alt mr-1"></i>
+                            Open Preview in New Tab
+                        </a>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-4">
+                        <button @click="approveRequest(currentApproval?.request_id, false)" 
+                                class="px-6 py-3 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors">
+                            <i class="fas fa-times mr-2"></i>
+                            Reject
+                        </button>
+                        <button @click="approveRequest(currentApproval?.request_id, true)" 
+                                class="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                            <i class="fas fa-check mr-2"></i>
+                            Approve & Continue
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Approval Notification Badge -->
+        <div x-show="pendingApprovals.length > 0 && !showApprovalModal" 
+             @click="showApprovalModal = true; currentApproval = pendingApprovals[0]"
+             class="fixed bottom-4 right-4 bg-yellow-500 text-white px-6 py-4 rounded-lg shadow-lg cursor-pointer hover:bg-yellow-600 transition-colors z-40">
+            <div class="flex items-center">
+                <i class="fas fa-bell fa-shake mr-2"></i>
+                <span class="font-semibold" x-text="pendingApprovals.length + ' Approval' + (pendingApprovals.length > 1 ? 's' : '') + ' Pending'"></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
