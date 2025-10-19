@@ -48,6 +48,14 @@ uvicorn src.agentic_web_app_builder.api.main:app --reload
 **View your deployed site:**
 ![View Deployed Site](Screenshots/View-Deployed-Site.png)
 
+**Preview feedback workflow - Original vs Fixed:**
+
+_Original website with issues:_
+![Original](Screenshots/Original.png)
+
+_After applying preview feedback and fixes:_
+![Fixed](Screenshots/Fixed.png)
+
 ## Architecture
 
 Single API entry point (`api/main.py`) orchestrates specialized agents:

@@ -191,6 +191,29 @@ class DeploymentResult(BaseModel):
     version: Optional[str] = Field(None, description="Version or commit hash deployed")
 
 
+class ProjectVersion(BaseModel):
+    """Model for project version information."""
+    
+    version_id: str = Field(..., description="Unique version identifier")
+    html_content: str = Field(..., description="HTML content for this version")
+    feedback_applied: Optional[str] = Field(None, description="Feedback that was applied to create this version")
+    test_results: Optional[Dict[str, Any]] = Field(None, description="Test results for this version")
+    created_at: datetime = Field(default_factory=datetime.utcnow, description="Version creation timestamp")
+    is_current: bool = Field(default=False, description="Whether this is the current active version")
+
+
+class FeedbackSession(BaseModel):
+    """Model for feedback session information."""
+    
+    project_id: str = Field(..., description="ID of the project this session belongs to")
+    versions: List[ProjectVersion] = Field(default_factory=list, description="List of all versions in this session")
+    current_version_id: str = Field(..., description="ID of the currently active version")
+    preview_url: Optional[str] = Field(None, description="URL for previewing the current version")
+    status: str = Field(default="active", description="Session status: active, completed, cancelled")
+    created_at: datetime = Field(default_factory=datetime.utcnow, description="Session creation timestamp")
+    updated_at: datetime = Field(default_factory=datetime.utcnow, description="Session last update timestamp")
+
+
 class ProjectState(BaseModelWithTimestamp):
     """Complete state of a project."""
     
@@ -205,6 +228,13 @@ class ProjectState(BaseModelWithTimestamp):
     monitoring_config: Optional[MonitoringConfig] = Field(None, description="Monitoring configuration")
     checkpoints: List[str] = Field(default_factory=list, description="List of checkpoint IDs")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional project metadata")
+    
+    # New fields for testing, monitoring, and feedback
+    test_results: Optional[Dict[str, Any]] = Field(None, description="Latest test execution results")
+    feedback_session: Optional[FeedbackSession] = Field(None, description="Current feedback session information")
+    versions: List[ProjectVersion] = Field(default_factory=list, description="List of all project versions")
+    current_version_id: Optional[str] = Field(None, description="ID of the currently active version")
+    preview_url: Optional[str] = Field(None, description="URL for previewing the current version")
     
     def get_all_tasks(self) -> List[Task]:
         """Get all tasks regardless of status."""

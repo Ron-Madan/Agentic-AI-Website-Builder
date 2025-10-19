@@ -171,14 +171,68 @@ function appData() {
         // Get status color classes
         getStatusColor(status) {
             const colors = {
+                'initializing': 'bg-gray-100 text-gray-800',
                 'planning': 'bg-blue-100 text-blue-800',
+                'awaiting_approval': 'bg-indigo-100 text-indigo-800',
                 'development': 'bg-yellow-100 text-yellow-800',
                 'testing': 'bg-purple-100 text-purple-800',
+                'feedback': 'bg-cyan-100 text-cyan-800',
+                'awaiting_feedback': 'bg-cyan-100 text-cyan-800',
                 'deployment': 'bg-orange-100 text-orange-800',
+                'awaiting_deployment_approval': 'bg-orange-100 text-orange-800',
+                'deployed': 'bg-green-100 text-green-800',
                 'completed': 'bg-green-100 text-green-800',
                 'failed': 'bg-red-100 text-red-800'
             };
             return colors[status] || 'bg-gray-100 text-gray-800';
+        },
+
+        // Get user-friendly status text
+        getStatusText(status) {
+            const statusTexts = {
+                'initializing': 'Initializing',
+                'planning': 'Planning',
+                'awaiting_approval': 'Awaiting Approval',
+                'development': 'Developing',
+                'testing': 'Testing',
+                'feedback': 'Feedback Phase',
+                'awaiting_feedback': 'Awaiting Feedback',
+                'deployment': 'Deploying',
+                'awaiting_deployment_approval': 'Awaiting Deployment Approval',
+                'deployed': 'Deployed',
+                'completed': 'Completed',
+                'failed': 'Failed'
+            };
+            return statusTexts[status] || status;
+        },
+
+        // Check if project needs user action
+        needsUserAction(project) {
+            return ['awaiting_approval', 'awaiting_feedback', 'awaiting_deployment_approval'].includes(project.status);
+        },
+
+        // Get preview URL for project
+        getPreviewUrl(project) {
+            if (project.feedback_session && project.feedback_session.preview_url) {
+                return project.feedback_session.preview_url;
+            }
+            if (project.deployment_url) {
+                return project.deployment_url;
+            }
+            if (project.status === 'awaiting_feedback' || project.current_phase === 'feedback') {
+                return `/preview/${project.project_id}`;
+            }
+            return null;
+        },
+
+        // Open preview in new tab
+        openPreview(project) {
+            const previewUrl = this.getPreviewUrl(project);
+            if (previewUrl) {
+                window.open(previewUrl, '_blank');
+            } else {
+                this.showErrorMessage('Preview not available for this project');
+            }
         },
 
         // Show success message

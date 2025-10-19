@@ -631,3 +631,15 @@ class InMemoryStateManager:
     async def restore_from_checkpoint(self, checkpoint_id: str) -> Dict[str, Any]:
         """Restore project state from a checkpoint."""
         return self.checkpoints.get(checkpoint_id, {})
+    
+    async def store_data(self, key: str, data: Any) -> None:
+        """Store arbitrary data with a key."""
+        if not hasattr(self, '_data_store'):
+            self._data_store = {}
+        self._data_store[key] = data
+    
+    async def get_data(self, key: str) -> Optional[Any]:
+        """Retrieve data by key."""
+        if not hasattr(self, '_data_store'):
+            self._data_store = {}
+        return self._data_store.get(key)
