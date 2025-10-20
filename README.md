@@ -1,6 +1,6 @@
 # Agentic Web App Builder
 
-An intelligent multi-agent system that takes natural language input and autonomously builds, tests, deploys, and monitors web applications. You can check out a recently created portfolio site, [here](https://melodious-mousse-6807b2.netlify.app).
+An intelligent multi-agent system that takes natural language input and autonomously builds, tests, deploys, and monitors web applications. You can check out a recently created portfolio site, [here](https://68f6826594d264016b4b4404--jocular-cobbler-65bc49.netlify.app).
 
 ## Features
 
@@ -39,22 +39,54 @@ uvicorn src.agentic_web_app_builder.api.main:app --reload
 
 ### Screenshots
 
-**Fill in your website details:**
-![Fill In Details](Screenshots/Fill-In-Details.png)
+**Start with the initial prompt:**
+![Initial Prompt](Screenshots/Fill-In-Details.png)
 
-**Monitor project progress:**
-![View Project Status](Screenshots/View-Project-Status.png)
+**Manage assets (images, fonts, and media):**
+![Asset Manager](Screenshots/Asset-Manager.png)
 
-**View your deployed site:**
-![View Deployed Site](Screenshots/View-Deployed-Site.png)
+**Edit code with live preview:**
+![Code Editor](Screenshots/Code-Editor.png)
 
-**Preview feedback workflow - Original vs Fixed:**
+**Review LLM feedback and apply fixes:**
+![LLM Feedback](Screenshots/Feedback-and-Preview.png)
 
-_Original website with issues:_
-![Original](Screenshots/Original.png)
+**Deploy and view the live site:**
+![Deployment Status](Screenshots/Deployed-Site.png)
 
-_After applying preview feedback and fixes:_
-![Fixed](Screenshots/Fixed.png)
+## Preview Workspace
+
+A focused environment to iterate quickly:
+
+- Initial Prompt: View and refine the prompt that generated the plan and scaffolding.
+- Asset Manager: Upload/import logos, images, fonts, and documents; auto-optimize and organize by project.
+- Code Editor: File tree, tabs, search, diffs, formatting, and tests with hot-reload preview.
+- Live Preview: Instant updates, device presets, and viewport controls.
+- Feedback Panel: Inline comments mapped to DOM/code, AI-suggested fixes with approve/apply.
+
+## End-to-End Flow
+
+1. Initial Prompt
+
+   - Describe the site, goals, tech stack, and constraints.
+   - Planner agent produces an execution plan; you can approve or refine.
+
+2. Asset Manager
+
+   - Add brand assets and content; the system links assets to components and pages.
+
+3. Code Editor
+
+   - Review generated code, make edits, run tests, and commit changes.
+
+4. LLM Feedback
+
+   - Leave comments in the preview; the LLM proposes changes.
+   - Approve to apply; diffs are shown before merge.
+
+5. Deployment
+   - Choose Netlify or Vercel, set env vars, and run a preview build.
+   - Promote to production and monitor deploy status and logs.
 
 ## Architecture
 

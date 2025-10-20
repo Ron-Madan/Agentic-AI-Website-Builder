@@ -14,6 +14,7 @@
         .glass { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.1); }
         .animate-float { animation: float 6s ease-in-out infinite; }
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
+    [x-cloak] { display: none !important; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -136,6 +137,233 @@
             </div>
         </div>
 
+        <!-- Preview Workspace -->
+        <div x-show="showPreviewWorkspace"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="fixed inset-0 z-50 flex flex-col bg-gray-900 bg-opacity-80 backdrop-blur"
+             @keydown.escape.window="closePreviewWorkspace">
+            <div class="flex-1 flex flex-col p-4">
+                <div class="bg-white rounded-2xl shadow-2xl flex-1 overflow-hidden flex flex-col">
+                    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
+                        <div>
+                            <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">Preview Workspace</p>
+                            <h3 class="text-xl font-semibold text-gray-900" x-text="selectedProject?.project_name || selectedProject?.description || 'Project Preview'"></h3>
+                            <p class="text-sm text-gray-500" x-text="editorContext.description"></p>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                <button @click="refreshWorkspacePreview(true)"
+                    class="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                                    :disabled="!editorContext.previewUrl">
+                                <i class="fas fa-rotate mr-2"></i>Reload Preview
+                            </button>
+                <button @click="openPreviewInNewTab"
+                    class="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                                    :disabled="!editorContext.previewUrl">
+                                <i class="fas fa-external-link-alt mr-2"></i>Open in New Tab
+                            </button>
+                <button @click="saveEditorContent"
+                    class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    :disabled="false">
+                                <span x-show="!editorSaving"><i class="fas fa-save mr-2"></i>Save Changes</span>
+                                <span x-show="editorSaving"><i class="fas fa-spinner fa-spin mr-2"></i>Saving...</span>
+                            </button>
+                            <button @click="closePreviewWorkspace" class="text-gray-500 hover:text-gray-700">
+                                <i class="fas fa-times text-2xl"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="px-6 py-2 bg-white border-b border-gray-200">
+                        <div class="flex items-center space-x-3 text-xs text-gray-500">
+                            <span class="flex items-center" x-show="editorContext.versionId"><i class="fas fa-code-branch mr-1"></i>Version <span class="ml-1" x-text="editorContext.versionId"></span></span>
+                            <span class="flex items-center" x-show="selectedProject && selectedProject.status">
+                                <i class="fas fa-tasks mr-1"></i>
+                                <span x-text="selectedProject ? getStatusText(selectedProject.status) : ''"></span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex items-center px-6 py-4 border-b border-gray-200 bg-gray-50">
+                        <div class="flex space-x-2">
+                            <button @click="handleWorkspaceTab('preview')"
+                                    :class="workspaceTabActive('preview') ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'"
+                                    class="px-4 py-2 rounded-lg border text-sm font-medium">
+                                <i class="fas fa-desktop mr-2"></i>Preview
+                            </button>
+                            <button @click="handleWorkspaceTab('code')"
+                                    :class="workspaceTabActive('code') ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'"
+                                    class="px-4 py-2 rounded-lg border text-sm font-medium">
+                                <i class="fas fa-code mr-2"></i>Code
+                            </button>
+                            <button @click="handleWorkspaceTab('assets')"
+                                    :class="workspaceTabActive('assets') ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'"
+                                    class="px-4 py-2 rounded-lg border text-sm font-medium">
+                                <i class="fas fa-images mr-2"></i>Assets
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-hidden bg-white">
+                        <div x-show="workspaceTab === 'preview'" x-cloak class="h-full relative">
+                            <template x-if="!editorContext.previewUrl">
+                                <div class="absolute inset-0 flex items-center justify-center text-gray-500 text-sm">
+                                    <div class="text-center">
+                                        <i class="fas fa-hourglass-half text-2xl mb-3"></i>
+                                        <p>No preview available yet. Save code or try reloading.</p>
+                                    </div>
+                                </div>
+                            </template>
+                            <template x-if="editorContext.previewUrl">
+                                <div class="h-full relative">
+                                    <div x-show="workspacePreviewLoading" class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 z-10">
+                                        <div class="text-center text-gray-600">
+                                            <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+                                            <p class="text-sm">Loading preview...</p>
+                                        </div>
+                                    </div>
+                                    <iframe :key="workspaceIframeKey"
+                                            x-show="workspacePreviewUrl"
+                                            :src="workspacePreviewUrl"
+                                            class="w-full h-full border-0 bg-white"
+                                            @load="handleWorkspacePreviewLoad"
+                                            @error="handleWorkspacePreviewError"
+                                            allow="clipboard-write; accelerometer; ambient-light-sensor; camera; encrypted-media; geolocation; gyroscope; magnetometer; microphone; vr">
+                                    </iframe>
+                                    <div x-show="workspacePreviewError" class="absolute inset-x-6 bottom-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                                        <p class="text-sm" x-text="workspacePreviewError"></p>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <div x-show="workspaceTab === 'code'" x-cloak class="h-full bg-gray-100 relative">
+                                <div x-show="editorContentLoading" class="absolute inset-0 flex flex-col items-center justify-center text-center px-6 z-10 bg-white">
+                                    <i class="fas fa-spinner fa-spin text-2xl text-gray-600 mb-3"></i>
+                                    <p class="text-gray-600 text-sm">Loading code...</p>
+                                </div>
+                                <div x-show="editorLoadError && !editorContentLoading && !editorLoadError.includes('Code will appear here')" class="absolute inset-0 flex flex-col items-center justify-center text-center px-6 z-10 bg-white">
+                                    <i class="fas fa-exclamation-triangle text-3xl text-yellow-500 mb-3"></i>
+                                    <p class="text-gray-700 text-sm" x-text="editorLoadError"></p>
+                                    <button @click="retryLoadEditor" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                                        <i class="fas fa-redo mr-2"></i>Retry loading code
+                                    </button>
+                                    <p class="text-gray-500 text-xs mt-2">Return to Preview while the workspace catches up.</p>
+                                </div>
+                                <div x-show="editorLoadError && editorLoadError.includes('Code will appear here')" class="absolute inset-0 flex flex-col items-center justify-center text-center px-6 z-10 bg-white">
+                                    <i class="fas fa-code text-4xl text-blue-500 mb-4"></i>
+                                    <h3 class="text-xl font-semibold text-gray-800 mb-2">Code Editor</h3>
+                                    <p class="text-gray-600 text-sm mb-4" x-text="editorLoadError"></p>
+                                    <div class="bg-gray-100 rounded-lg p-4 max-w-md border">
+                                        <p class="text-gray-600 text-xs mb-2">Project Status:</p>
+                                        <div class="flex items-center text-sm">
+                                            <span class="px-2 py-1 rounded text-xs" 
+                                                  :class="getStatusColor(selectedProject?.status)" 
+                                                  x-text="getStatusText(selectedProject?.status)"></span>
+                                            <span class="ml-2 text-gray-500" x-text="selectedProject?.current_phase"></span>
+                                        </div>
+                                        <div class="mt-2 text-xs text-gray-500">
+                                            Progress: <span x-text="selectedProject?.progress_percentage || 0"></span>%
+                                        </div>
+                                    </div>
+                                    <button @click="retryLoadEditor" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm">
+                                        <i class="fas fa-refresh mr-2"></i>Check for Code
+                                    </button>
+                                </div>
+                                <!-- Simple textarea instead of Monaco for now -->
+                                <div x-show="!editorLoadError && !editorContentLoading" class="h-full p-4">
+                                    <div class="h-full flex flex-col">
+                                        <div class="mb-2 text-sm flex items-center justify-between">
+                                            <div class="text-gray-600">
+                                                <i class="fas fa-info-circle mr-1"></i>
+                                                Simple text editor (Monaco editor temporarily disabled to prevent crashes)
+                                            </div>
+
+                                        </div>
+                                        <!-- Status info -->
+                                        <div class="mb-2 text-xs text-gray-500 flex items-center justify-between">
+                                            <div>
+                                                <span x-show="editorContext.projectId">Project loaded</span>
+                                                <span x-show="!editorContext.projectId" class="text-red-500">No project</span>
+                                                • <span x-text="editorContent?.length || 0"></span> characters
+                                            </div>
+                                            <div x-show="editorSaving" class="text-blue-600">
+                                                <i class="fas fa-spinner fa-spin mr-1"></i>Saving...
+                                            </div>
+                                        </div>
+
+
+                                        <!-- Asset reference help -->
+                                        <div x-show="projectAssets.length > 0" class="mb-2 text-xs bg-blue-50 p-2 rounded border">
+                                            <div class="font-semibold text-blue-800 mb-1">📁 Available Assets (copy path to use in code):</div>
+                                            <template x-for="asset in projectAssets" :key="asset.asset_id">
+                                                <div class="flex items-center justify-between py-1">
+                                                    <span class="text-blue-700" x-text="asset.filename"></span>
+                                                    <code class="text-xs bg-white px-1 rounded cursor-pointer" 
+                                                          @click="navigator.clipboard.writeText('/assets/' + asset.stored_filename); $el.style.background='#10b981'; setTimeout(() => $el.style.background='white', 1000)"
+                                                          x-text="'/assets/' + asset.stored_filename"></code>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <textarea 
+                                            x-model="editorContent"
+                                            @input="hasUnsavedChanges = true"
+                                            class="flex-1 w-full p-4 border border-gray-300 rounded-lg font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            placeholder="HTML code will appear here..."
+                                            spellcheck="false"></textarea>
+                                    </div>
+                                </div>
+                        </div>
+                        <div x-show="workspaceTab === 'assets'" x-cloak class="h-full overflow-y-auto p-6">
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center"
+                                 :class="assetFiles.length ? 'bg-blue-50 border-blue-300' : ''">
+                                <input type="file" id="workspace-asset-input" multiple accept="image/*" class="hidden" @change="handleAssetSelection">
+                                <label for="workspace-asset-input" class="cursor-pointer inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                                    <i class="fas fa-upload mr-2"></i>Select Images
+                                </label>
+                                <p class="text-sm text-gray-500 mt-2">PNG, JPG, GIF, WEBP up to 5MB each</p>
+                                <div x-show="assetFiles.length" class="mt-4 text-sm text-gray-700">
+                                    Selected files:
+                                    <ul class="mt-1 space-y-1">
+                                        <template x-for="file in assetFiles" :key="file.name">
+                                            <li x-text="file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)'" class="text-gray-600"></li>
+                                        </template>
+                                    </ul>
+                                </div>
+                                <p x-show="assetUploadError" class="mt-3 text-sm text-red-600" x-text="assetUploadError"></p>
+                                <button @click="uploadAssets"
+                                        class="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                        :disabled="assetUploading || assetFiles.length === 0">
+                                    <span x-show="!assetUploading"><i class="fas fa-cloud-upload-alt mr-2"></i>Upload Selected</span>
+                                    <span x-show="assetUploading"><i class="fas fa-spinner fa-spin mr-2"></i>Uploading...</span>
+                                </button>
+                            </div>
+                            <div class="mt-8">
+                                <h4 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Uploaded Assets</h4>
+                                <div x-show="projectAssets.length" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <template x-for="asset in projectAssets" :key="asset.asset_id">
+                                        <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                            <div class="bg-gray-100 p-3 h-40 flex items-center justify-center">
+                                                <img :src="asset.url" alt="Asset preview" class="max-w-full max-h-full" loading="lazy">
+                                            </div>
+                                            <div class="px-3 py-2 text-sm">
+                                                <div class="font-medium text-gray-800" x-text="asset.filename"></div>
+                                                <div class="text-xs text-gray-500" x-text="(asset.size / 1024).toFixed(1) + ' KB'"></div>
+                                                <div class="mt-2 flex items-center justify-between text-xs text-gray-500">
+                                                    <code class="break-all">/assets/<span x-text="asset.stored_filename"></span></code>
+                                                    <button @click="deleteAsset(asset)" class="text-red-500 hover:text-red-600"><i class="fas fa-trash"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div x-show="!projectAssets.length" class="text-sm text-gray-500">No assets uploaded yet.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <!-- Hero Section -->
         <div x-show="!showCreateForm && !showProjects && !showConfig" class="gradient-bg min-h-screen flex items-center justify-center relative overflow-hidden">
             <!-- Floating Elements -->
@@ -385,11 +613,29 @@
                                     <div x-show="project.status === 'awaiting_feedback'" class="space-y-2">
                                         <button @click="openPreview(project)" 
                                                 class="w-full bg-cyan-600 text-white px-3 py-2 rounded-lg hover:bg-cyan-700 text-sm">
-                                            <i class="fas fa-comments mr-1"></i>
-                                            Review & Feedback
+                                            <i class="fas fa-external-link-alt mr-1"></i>
+                                            Open Preview in New Tab
+                                        </button>
+                                        <button @click="openPreviewWorkspace(project, 'preview')"
+                                                class="w-full bg-cyan-50 text-cyan-700 px-3 py-2 rounded-lg hover:bg-cyan-100 text-sm border border-cyan-200">
+                                            <i class="fas fa-desktop mr-1"></i>
+                                            Open Preview Workspace
                                         </button>
                                     </div>
                                     
+                                    <div class="space-y-2">
+                                        <button @click="openPreviewWorkspace(project, 'code')"
+                                                class="w-full bg-gray-800 text-white px-3 py-2 rounded-lg hover:bg-gray-900 text-sm flex items-center justify-center">
+                                            <i class="fas fa-code mr-2"></i>
+                                            Open Workspace (Code)
+                                        </button>
+                                        <button @click="openPreviewWorkspace(project, 'assets')"
+                                                class="w-full bg-gray-100 text-gray-800 px-3 py-2 rounded-lg hover:bg-gray-200 text-sm flex items-center justify-center">
+                                            <i class="fas fa-image mr-2"></i>
+                                            Open Workspace (Assets)
+                                        </button>
+                                    </div>
+
                                     <div x-show="project.deployment_url" class="space-y-2">
                                         <a :href="project.deployment_url" 
                                            target="_blank"
@@ -413,7 +659,7 @@
         </div>
 
         <!-- Project Detail Modal -->
-        <div x-show="selectedProject" 
+    <div x-show="selectedProject && !showPreviewWorkspace" 
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0"
              x-transition:enter-end="opacity-100"
@@ -470,6 +716,29 @@
                                     <div class="text-sm text-gray-600">Failed</div>
                                 </div>
                             </div>
+
+                            <div class="mt-6">
+                                <h4 class="font-semibold text-gray-900 mb-2">Assets</h4>
+                                <div x-show="projectAssets.length" class="space-y-2">
+                                    <template x-for="asset in projectAssets" :key="asset.asset_id">
+                                        <div class="flex items-center justify-between bg-gray-100 px-4 py-2 rounded">
+                                            <div class="flex items-center space-x-3">
+                                                <div class="w-10 h-10 bg-white rounded overflow-hidden border border-gray-200 flex items-center justify-center">
+                                                    <img :src="asset.url" alt="Asset" class="max-w-full max-h-full" loading="lazy" />
+                                                </div>
+                                                <div>
+                                                    <div class="text-sm font-medium text-gray-800" x-text="asset.filename"></div>
+                                                    <div class="text-xs text-gray-500" x-text="(asset.size / 1024).toFixed(1) + ' KB'"></div>
+                                                </div>
+                                            </div>
+                                            <a :href="asset.url" target="_blank" class="text-blue-600 hover:text-blue-800 text-sm">
+                                                <i class="fas fa-download mr-1"></i>Download
+                                            </a>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div x-show="!projectAssets.length" class="text-sm text-gray-500">No assets uploaded yet</div>
+                            </div>
                         </div>
                     </div>
                     
@@ -488,12 +757,17 @@
                             <div class="space-y-2">
                                 <button @click="openPreview(selectedProject)" 
                                         class="w-full bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700 transition-colors">
-                                    <i class="fas fa-eye mr-2"></i>
-                                    Review Website & Provide Feedback
+                                    <i class="fas fa-external-link-alt mr-2"></i>
+                                    Open Preview in New Tab
+                                </button>
+                                <button @click="openPreviewWorkspace(selectedProject, 'preview')"
+                                        class="w-full bg-cyan-50 text-cyan-700 px-4 py-2 rounded-lg hover:bg-cyan-100 transition-colors border border-cyan-200">
+                                    <i class="fas fa-desktop mr-2"></i>
+                                    Open Preview Workspace
                                 </button>
                                 <p class="text-sm text-cyan-600">
                                     <i class="fas fa-info-circle mr-1"></i>
-                                    The preview includes a feedback interface where you can request changes or approve for deployment.
+                                    The preview includes the feedback panel so you can request changes or approve deployment.
                                 </p>
                             </div>
                         </div>
@@ -509,9 +783,14 @@
                                 <i class="fas fa-external-link-alt mr-1"></i>
                                 Open Preview in New Tab
                             </button>
+                            <button @click="openPreviewWorkspace(selectedProject, 'preview')" 
+                                    class="ml-4 text-blue-600 hover:text-blue-800 underline">
+                                <i class="fas fa-desktop mr-1"></i>
+                                Launch Preview Workspace
+                            </button>
                             <p class="text-sm text-blue-700 mt-1">
                                 <i class="fas fa-info-circle mr-1"></i>
-                                View the AI-generated website locally
+                                Use the workspace to edit code/assets alongside the live preview
                             </p>
                         </div>
 

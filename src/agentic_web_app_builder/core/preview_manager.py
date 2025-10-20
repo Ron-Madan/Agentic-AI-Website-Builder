@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class PreviewServer:
     """Individual preview server for a project."""
     
-    def __init__(self, project_id: str, port: int, html_content: str):
+    def __init__(self, project_id: str, port: int, html_content: str, assets_dir: Optional[str] = None):
         """Initialize preview server.
         
         Args:
@@ -41,6 +41,7 @@ class PreviewServer:
         self.server_thread = None
         self.is_running = False
         self.temp_dir = None
+        self.assets_dir = assets_dir
         
         # Setup CORS
         self.app.add_middleware(
@@ -92,6 +93,10 @@ class PreviewServer:
             except Exception as e:
                 logger.error(f"Error handling feedback submission: {str(e)}")
                 raise HTTPException(status_code=500, detail="Failed to submit feedback")
+
+        # Serve uploaded assets when available
+        if self.assets_dir and os.path.isdir(self.assets_dir):
+            self.app.mount("/assets", StaticFiles(directory=self.assets_dir), name=f"assets-{self.project_id}")
     
     def start(self):
         """Start the preview server in a separate thread."""
@@ -201,12 +206,13 @@ class PreviewManager:
         """
         self.used_ports.discard(port)
     
-    async def start_preview_server(self, project_id: str, html_content: str) -> str:
+    async def start_preview_server(self, project_id: str, html_content: str, assets_dir: Optional[str] = None) -> str:
         """Start a preview server for a project.
         
         Args:
             project_id: ID of the project
             html_content: HTML content to serve with feedback interface injected
+            assets_dir: Optional directory containing project asset files
             
         Returns:
             str: Preview URL
@@ -222,13 +228,13 @@ class PreviewManager:
         
         try:
             # Inject feedback interface into HTML content
-            enhanced_html = self.inject_feedback_interface(html_content)
+            enhanced_html = self.inject_feedback_interface(project_id, html_content)
             
             # Find available port
             port = self._find_available_port()
             
             # Create and start server
-            server = PreviewServer(project_id, port, enhanced_html)
+            server = PreviewServer(project_id, port, enhanced_html, assets_dir=assets_dir)
             server.start()
             
             # Store server reference
@@ -299,7 +305,7 @@ class PreviewManager:
             return f"http://127.0.0.1:{server.port}"
         return None
     
-    def inject_feedback_interface(self, html_content: str) -> str:
+    def inject_feedback_interface(self, project_id: str, html_content: str) -> str:
         """Inject feedback interface into HTML content.
         
         Args:
@@ -313,113 +319,169 @@ class PreviewManager:
         # Feedback interface HTML and JavaScript
         feedback_interface = """
         <!-- Feedback Interface -->
-        <div id="feedback-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000;">
-            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
-                <h3 style="margin-top: 0; color: #333;">Provide Feedback</h3>
-                <p style="color: #666; margin-bottom: 20px;">Tell us what you'd like to change about this website:</p>
-                <textarea id="feedback-text" placeholder="Describe the changes you'd like to see..." style="width: 100%; height: 120px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: Arial, sans-serif; resize: vertical;"></textarea>
-                <div style="margin-top: 20px; text-align: right;">
-                    <button onclick="closeFeedback()" style="background: #ccc; color: #333; border: none; padding: 10px 20px; border-radius: 5px; margin-right: 10px; cursor: pointer;">Cancel</button>
-                    <button onclick="submitFeedback()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">Submit Feedback</button>
-                </div>
-                <div id="feedback-status" style="margin-top: 15px; padding: 10px; border-radius: 5px; display: none;"></div>
+        <div id="feedback-overlay" style="position: fixed; top: 0; right: 0; width: 350px; height: 100vh; background: rgba(0, 0, 0, 0.9); color: white; padding: 20px; box-sizing: border-box; z-index: 10000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow-y: auto; transform: translateX(100%); transition: transform 0.3s ease;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; color: #4CAF50;">Website Feedback</h3>
+                <button onclick="toggleFeedback()" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 5px;">×</button>
             </div>
+            <div style="margin-bottom: 20px;">
+                <p style="font-size: 14px; line-height: 1.4; margin-bottom: 15px;">
+                    Review your website and provide feedback for improvements, or approve it for deployment.
+                </p>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 500;">Your Feedback:</label>
+                <textarea id="feedback-text" placeholder="Describe any changes you'd like to make..." style="width: 100%; height: 120px; padding: 10px; border: 1px solid #555; border-radius: 4px; background: #333; color: white; font-size: 14px; resize: vertical; box-sizing: border-box;"></textarea>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button onclick="submitFeedback()" style="background: #2196F3; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500;">Submit Feedback & Regenerate</button>
+                <button onclick="approveForDeployment()" style="background: #4CAF50; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500;">Approve for Deployment</button>
+            </div>
+            <div id="feedback-status" style="margin-top: 15px; padding: 10px; border-radius: 4px; font-size: 13px; display: none;"></div>
         </div>
-        
-        <!-- Feedback Button -->
-        <div id="feedback-button" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;">
-            <button onclick="openFeedback()" style="background: #28a745; color: white; border: none; padding: 15px 20px; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-weight: bold;">
-                💬 Give Feedback
-            </button>
-        </div>
-        
+
+        <!-- Feedback Toggle Button -->
+        <button id="feedback-toggle" onclick="toggleFeedback()" style="position: fixed; top: 20px; right: 20px; background: #4CAF50; color: white; border: none; padding: 12px 16px; border-radius: 50px; cursor: pointer; font-size: 14px; font-weight: 500; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: all 0.3s ease;">💬 Feedback</button>
+
         <script>
-        function openFeedback() {
-            document.getElementById('feedback-overlay').style.display = 'block';
-            document.getElementById('feedback-text').focus();
-        }
-        
-        function closeFeedback() {
-            document.getElementById('feedback-overlay').style.display = 'none';
-            document.getElementById('feedback-text').value = '';
-            document.getElementById('feedback-status').style.display = 'none';
-        }
-        
-        async function submitFeedback() {
-            const feedbackText = document.getElementById('feedback-text').value.trim();
-            const statusDiv = document.getElementById('feedback-status');
-            
-            if (!feedbackText) {
-                showStatus('Please enter your feedback before submitting.', 'error');
-                return;
-            }
-            
-            try {
-                showStatus('Submitting feedback...', 'info');
-                
-                const response = await fetch('/api/feedback', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        feedback: feedbackText,
-                        timestamp: new Date().toISOString()
-                    })
-                });
-                
-                if (response.ok) {
-                    showStatus('Feedback submitted successfully! The website will be updated shortly.', 'success');
-                    setTimeout(() => {
-                        closeFeedback();
-                        // Optionally reload the page after a delay to show updates
-                        setTimeout(() => window.location.reload(), 2000);
-                    }, 2000);
-                } else {
-                    throw new Error('Failed to submit feedback');
+            const previewParams = new URLSearchParams(window.location.search);
+            let apiBase = previewParams.get('apiHost');
+            if (apiBase) {
+                try {
+                    apiBase = decodeURIComponent(apiBase);
+                } catch (error) {
+                    console.warn('Failed to decode apiHost parameter', error);
                 }
-            } catch (error) {
-                console.error('Error submitting feedback:', error);
-                showStatus('Failed to submit feedback. Please try again.', 'error');
             }
-        }
-        
-        function showStatus(message, type) {
-            const statusDiv = document.getElementById('feedback-status');
-            statusDiv.textContent = message;
-            statusDiv.style.display = 'block';
-            
-            if (type === 'success') {
-                statusDiv.style.background = '#d4edda';
-                statusDiv.style.color = '#155724';
-                statusDiv.style.border = '1px solid #c3e6cb';
-            } else if (type === 'error') {
-                statusDiv.style.background = '#f8d7da';
-                statusDiv.style.color = '#721c24';
-                statusDiv.style.border = '1px solid #f5c6cb';
-            } else {
-                statusDiv.style.background = '#d1ecf1';
-                statusDiv.style.color = '#0c5460';
-                statusDiv.style.border = '1px solid #bee5eb';
+            if (!apiBase) {
+                const defaultPort = window.location.protocol === 'https:' ? '' : ':8000';
+                apiBase = `${window.location.protocol}//${window.location.hostname}${defaultPort}`;
             }
-        }
-        
-        // Close feedback overlay when clicking outside
-        document.getElementById('feedback-overlay').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeFeedback();
+
+            function buildApiUrl(path) {
+                if (!path.startsWith('/')) {
+                    path = '/' + path;
+                }
+                const normalizedBase = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
+                return normalizedBase + path;
             }
-        });
-        
-        // Handle Enter key in textarea (Ctrl+Enter to submit)
-        document.getElementById('feedback-text').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && e.ctrlKey) {
-                submitFeedback();
+
+            let feedbackOpen = false;
+
+            function toggleFeedback() {
+                const overlay = document.getElementById('feedback-overlay');
+                const toggle = document.getElementById('feedback-toggle');
+                feedbackOpen = !feedbackOpen;
+
+                if (feedbackOpen) {
+                    overlay.style.transform = 'translateX(0)';
+                    toggle.style.right = '370px';
+                } else {
+                    overlay.style.transform = 'translateX(100%)';
+                    toggle.style.right = '20px';
+                }
             }
-        });
+
+            async function submitFeedback() {
+                const feedbackText = document.getElementById('feedback-text').value.trim();
+                if (!feedbackText) {
+                    showStatus('Please enter your feedback before submitting.', 'error');
+                    return;
+                }
+
+                showStatus('Submitting feedback and regenerating...', 'info');
+
+                try {
+                    const response = await fetch(buildApiUrl('/api/projects/__PROJECT_ID__/feedback'), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            feedback_text: feedbackText,
+                            feedback_type: 'improvement'
+                        })
+                    });
+
+                    if (response.ok) {
+                        showStatus('Feedback submitted! Regenerating website...', 'success');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        const error = await response.json().catch(() => ({}));
+                        showStatus('Error: ' + (error.detail || 'Failed to submit feedback'), 'error');
+                    }
+                } catch (error) {
+                    console.error('Error submitting feedback:', error);
+                    showStatus('Error: Failed to submit feedback', 'error');
+                }
+            }
+
+            async function approveForDeployment() {
+                showStatus('Approving for deployment...', 'info');
+
+                try {
+                    const response = await fetch(buildApiUrl('/api/approvals/approve'), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            project_id: '__PROJECT_ID__',
+                            approval_type: 'feedback_review'
+                        })
+                    });
+
+                    if (response.ok) {
+                        showStatus('Approved! Proceeding to deployment...', 'success');
+                        setTimeout(() => {
+                            showStatus('Deployment in progress. You can close this preview tab.', 'info');
+                        }, 2000);
+                    } else {
+                        const error = await response.json().catch(() => ({}));
+                        showStatus('Error: ' + (error.detail || 'Failed to approve'), 'error');
+                    }
+                } catch (error) {
+                    console.error('Error approving deployment:', error);
+                    showStatus('Error: Failed to approve for deployment', 'error');
+                }
+            }
+
+            function showStatus(message, type) {
+                const status = document.getElementById('feedback-status');
+                status.textContent = message;
+                status.style.display = 'block';
+
+                if (type === 'success') {
+                    status.style.background = '#4CAF50';
+                } else if (type === 'error') {
+                    status.style.background = '#f44336';
+                } else {
+                    status.style.background = '#2196F3';
+                }
+
+                if (type === 'success' || type === 'error') {
+                    setTimeout(() => {
+                        status.style.display = 'none';
+                    }, 5000);
+                }
+            }
+
+            document.getElementById('feedback-text').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    submitFeedback();
+                }
+            });
+
+            setTimeout(() => {
+                toggleFeedback();
+            }, 1000);
         </script>
         """
         
+        feedback_interface = feedback_interface.replace("__PROJECT_ID__", project_id)
+
         # Try to inject before closing body tag, fallback to end of content
         if '</body>' in html_content:
             html_content = html_content.replace('</body>', f'{feedback_interface}</body>')
@@ -445,7 +507,7 @@ class PreviewManager:
         
         try:
             # Inject feedback interface into new content
-            enhanced_html = self.inject_feedback_interface(html_content)
+            enhanced_html = self.inject_feedback_interface(project_id, html_content)
             
             # Update server content
             server.update_content(enhanced_html)

@@ -1,6 +1,6 @@
 """Real agent-powered FastAPI application."""
 
-from fastapi import FastAPI, HTTPException, Header, status, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Header, status, BackgroundTasks, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -11,6 +11,8 @@ import uuid
 import logging
 import os
 import asyncio
+import mimetypes
+import shutil
 
 from ..core.config import get_settings
 from ..tools.llm_service import LLMService, LLMRequest, LLMMessage
@@ -32,7 +34,11 @@ logger = logging.getLogger(__name__)
 # Request/Response Models
 class CreateProjectRequest(BaseModel):
     """Request model for creating a new project."""
-    user_id: str = Field(..., description="ID of the user making the request", min_length=1)
+    user_id: str = Field(
+        default="web_user",
+        description="ID of the user making the request",
+        min_length=1
+    )
     description: str = Field(..., description="Natural language description of the project", min_length=10)
     requirements: List[str] = Field(default_factory=list, description="List of specific requirements")
     preferences: Dict[str, Any] = Field(default_factory=dict, description="User preferences and configuration")
@@ -81,6 +87,29 @@ class ProjectStatusResponse(BaseModel):
     
     # Phase-specific details
     phase_details: Optional[Dict[str, Any]] = None  # Details specific to current phase
+    assets: Optional[List[Dict[str, Any]]] = None  # Uploaded project assets
+
+
+class ProjectCodeResponse(BaseModel):
+    """Response model for retrieving project code."""
+    html_content: str
+    source: str
+    last_updated: datetime
+    version_id: Optional[str] = None
+    assets: Optional[List[Dict[str, Any]]] = None
+
+
+class ProjectCodeUpdate(BaseModel):
+    """Request model for updating project code from the editor."""
+    html_content: str
+    message: Optional[str] = None
+
+
+class AssetUploadResponse(BaseModel):
+    """Response model for asset uploads."""
+    project_id: str
+    uploaded: List[Dict[str, Any]]
+    total_assets: int
 
 
 # Global state
@@ -94,6 +123,39 @@ monitor_agent = None
 state_manager: Optional[StateManager] = None
 feedback_manager = None
 preview_manager = None
+
+
+# Asset storage configuration
+ASSET_UPLOAD_ROOT = os.path.join(os.path.dirname(__file__), "..", "uploads")
+os.makedirs(ASSET_UPLOAD_ROOT, exist_ok=True)
+
+MAX_ASSET_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB limit per asset
+ALLOWED_ASSET_MIME_TYPES = {
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml"
+}
+
+
+def get_project_asset_dir(project_id: str, ensure_exists: bool = True) -> str:
+    """Return the asset directory for a project, creating it when requested."""
+    project_dir = os.path.join(ASSET_UPLOAD_ROOT, project_id)
+    if ensure_exists:
+        os.makedirs(project_dir, exist_ok=True)
+    return project_dir
+
+
+def get_project_assets(project_id: str) -> List[Dict[str, Any]]:
+    """Get or initialize the in-memory asset list for a project."""
+    project = projects_store.get(project_id)
+    if project is None:
+        raise KeyError(f"Project {project_id} not found")
+    if "assets" not in project:
+        project["assets"] = []
+    return project["assets"]
 
 
 async def initialize_agents():
@@ -200,35 +262,41 @@ app = create_agent_app()
 @app.on_event("startup")
 async def startup_event():
     """Initialize agents on startup."""
+    app.state.startup_time = datetime.utcnow()
     await initialize_agents()
 
 
 @app.get("/")
-async def root():
-    """Serve the main web interface."""
+async def root(request: Request):
+    """Serve the main web interface with JSON fallback for API clients."""
+    accept_header = request.headers.get("accept", "*/*").lower()
+    wants_html = "text/html" in accept_header
+
     static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
     index_path = os.path.join(static_dir, "index.html")
-    
-    if os.path.exists(index_path):
+
+    if wants_html and os.path.exists(index_path):
         return FileResponse(index_path)
-    else:
-        settings = get_settings()
-        return {
-            "message": f"Welcome to {settings.app_name}",
-            "version": settings.version,
-            "environment": settings.environment,
-            "status": "running",
-            "agents_active": planner_agent is not None and developer_agent is not None
-        }
+
+    settings = get_settings()
+    return {
+        "message": f"Welcome to {settings.app_name}",
+        "version": settings.version,
+        "environment": settings.environment,
+        "status": "running",
+        "agents_active": planner_agent is not None and developer_agent is not None
+    }
 
 
 @app.get("/health")
 async def health():
     """Health check endpoint."""
+    settings = get_settings()
     return {
         "status": "healthy",
         "message": "Agentic Web App Builder is running",
         "timestamp": datetime.utcnow(),
+        "service": settings.app_name,
         "projects_count": len(projects_store),
         "sessions_count": len(sessions_store),
         "agents_initialized": planner_agent is not None,
@@ -237,6 +305,31 @@ async def health():
         "llm_service_active": llm_service is not None,
         "feedback_manager_active": feedback_manager is not None,
         "preview_manager_active": preview_manager is not None
+    }
+
+
+@app.get("/health/detailed")
+async def detailed_health():
+    """Provide detailed health information including dependency status."""
+    settings = get_settings()
+    dependencies = {
+        "planner_agent": planner_agent is not None,
+        "developer_agent": developer_agent is not None,
+        "tester_agent": tester_agent is not None,
+        "monitor_agent": monitor_agent is not None,
+        "llm_service": llm_service is not None,
+        "preview_manager": preview_manager is not None,
+        "feedback_manager": feedback_manager is not None,
+        "asset_storage_ready": os.path.exists(ASSET_UPLOAD_ROOT),
+    }
+
+    return {
+        "status": "healthy",
+        "service": settings.app_name,
+        "environment": settings.environment,
+        "timestamp": datetime.utcnow(),
+        "dependencies": dependencies,
+        "uptime_seconds": (datetime.utcnow() - app.state.startup_time).total_seconds() if hasattr(app.state, "startup_time") else None,
     }
 
 
@@ -560,8 +653,12 @@ async def _safe_feedback_session_creation(project_id: str, html_content: str, te
             try:
                 logger.info(f"Starting preview server for project {project_id}")
                 preview_url = await asyncio.wait_for(
-                    preview_manager.start_preview_server(project_id=project_id, html_content=html_content),
-                    timeout=30  # 30 second timeout
+                    preview_manager.start_preview_server(
+                        project_id=project_id,
+                        html_content=html_content,
+                        assets_dir=get_project_asset_dir(project_id)
+                    ),
+                    timeout=30
                 )
                 # Update feedback session with actual preview URL
                 feedback_session.preview_url = preview_url
@@ -1100,12 +1197,31 @@ async def deploy_to_netlify(project_id: str, project_data: Dict[str, Any]) -> st
             with open(redirects_path, "w", encoding="utf-8") as f:
                 f.write("/*    /index.html   200\n")
             
+            # Copy uploaded assets if available
+            assets_metadata = project_data.get("assets", []) or []
+            if assets_metadata:
+                assets_output_dir = os.path.join(site_dir, "assets")
+                os.makedirs(assets_output_dir, exist_ok=True)
+                project_asset_dir = get_project_asset_dir(project_id, ensure_exists=False)
+                for asset in assets_metadata:
+                    stored_filename = asset.get("stored_filename")
+                    if not stored_filename:
+                        continue
+                    source_path = os.path.join(project_asset_dir, stored_filename)
+                    if not os.path.isfile(source_path):
+                        logger.warning(f"Asset file missing during deploy: {source_path}")
+                        continue
+                    destination_path = os.path.join(assets_output_dir, stored_filename)
+                    shutil.copy2(source_path, destination_path)
+
             # Create zip file with proper structure
             zip_path = os.path.join(temp_dir, "site.zip")
             with zipfile.ZipFile(zip_path, 'w') as zipf:
-                # Add files with proper paths
-                zipf.write(index_path, "index.html")
-                zipf.write(redirects_path, "_redirects")
+                for root, _, files in os.walk(site_dir):
+                    for filename in files:
+                        absolute_path = os.path.join(root, filename)
+                        archive_name = os.path.relpath(absolute_path, site_dir)
+                        zipf.write(absolute_path, archive_name)
             
             # Deploy to Netlify
             import ssl
@@ -1260,13 +1376,12 @@ def generate_fallback_website(project_data: Dict[str, Any]) -> str:
 </html>"""
 
 
-@app.post("/api/projects/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
-async def create_project(
+async def _create_project_internal(
     request: CreateProjectRequest,
     background_tasks: BackgroundTasks,
-    session_id: Optional[str] = Header(None, alias="X-Session-ID")
+    session_id: Optional[str]
 ) -> ProjectResponse:
-    """Create a new project using real agents."""
+    """Shared implementation for project creation endpoints."""
     try:
         project_id = str(uuid.uuid4())
         
@@ -1286,7 +1401,8 @@ async def create_project(
             "generated_code": None,
             "test_results": None,
             "test_status": None,
-            "remediation_results": None
+            "remediation_results": None,
+            "assets": []
         }
         
         projects_store[project_id] = project_data
@@ -1303,7 +1419,7 @@ async def create_project(
         
         return ProjectResponse(
             project_id=project_id,
-            status="initializing",
+            status="created",
             message="Project created! AI agents are analyzing your requirements and will start building your website.",
             created_at=datetime.utcnow(),
             data={
@@ -1320,6 +1436,26 @@ async def create_project(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create project: {str(e)}"
         )
+
+
+@app.post("/api/projects/", response_model=ProjectResponse, status_code=status.HTTP_200_OK)
+async def create_project(
+    request: CreateProjectRequest,
+    background_tasks: BackgroundTasks,
+    session_id: Optional[str] = Header(None, alias="X-Session-ID")
+) -> ProjectResponse:
+    """Primary project creation endpoint."""
+    return await _create_project_internal(request, background_tasks, session_id)
+
+
+@app.post("/api/v1/projects/", response_model=ProjectResponse, status_code=status.HTTP_200_OK)
+async def create_project_legacy(
+    request: CreateProjectRequest,
+    background_tasks: BackgroundTasks,
+    session_id: Optional[str] = Header(None, alias="X-Session-ID")
+) -> ProjectResponse:
+    """Backward-compatible project creation endpoint."""
+    return await _create_project_internal(request, background_tasks, session_id)
 
 
 @app.get("/api/projects/{project_id}", response_model=ProjectStatusResponse)
@@ -1490,7 +1626,8 @@ async def get_project_status(project_id: str) -> ProjectStatusResponse:
         version_count=version_count,
         current_errors=current_errors if current_errors else None,
         warnings=warnings if warnings else None,
-        phase_details=phase_details if phase_details else None
+        phase_details=phase_details if phase_details else None,
+        assets=project.get("assets", []) or None
     )
 
 
@@ -1542,6 +1679,8 @@ async def get_project_details(project_id: str):
             "preferences": project.get("request", {}).get("preferences", {})
         }
     }
+
+    details["assets"] = project.get("assets", [])
     
     # LLM Analysis and Code Generation
     details["generation"] = {
@@ -2412,6 +2551,240 @@ async def respond_to_approval(request_id: str, response: ApprovalResponse, backg
         }
 
 
+# Asset Management Endpoints
+
+def _find_asset(project: Dict[str, Any], asset_id: str) -> Optional[Dict[str, Any]]:
+    """Find an asset in the project store."""
+    assets = project.get("assets", [])
+    return next((asset for asset in assets if asset.get("asset_id") == asset_id), None)
+
+
+@app.get("/api/projects/{project_id}/assets")
+async def list_project_assets(project_id: str):
+    """List uploaded assets for a project."""
+    if project_id not in projects_store:
+        raise HTTPException(status_code=404, detail="Project not found")
+    project = projects_store[project_id]
+    return {
+        "project_id": project_id,
+        "assets": project.get("assets", [])
+    }
+
+
+@app.post("/api/projects/{project_id}/assets", response_model=AssetUploadResponse)
+async def upload_project_assets(project_id: str, files: List[UploadFile] = File(...)):
+    """Upload image assets for a project."""
+    if project_id not in projects_store:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided for upload")
+
+    project = projects_store[project_id]
+    assets_dir = get_project_asset_dir(project_id)
+    uploaded_assets: List[Dict[str, Any]] = []
+
+    for upload in files:
+        original_name = upload.filename or "asset"
+        file_bytes = await upload.read()
+        file_size = len(file_bytes)
+
+        if file_size == 0:
+            raise HTTPException(status_code=400, detail=f"File {original_name} is empty")
+        if file_size > MAX_ASSET_SIZE_BYTES:
+            raise HTTPException(status_code=400, detail=f"File {original_name} exceeds the 5 MB limit")
+
+        content_type = upload.content_type or mimetypes.guess_type(original_name)[0]
+        if content_type and content_type.lower() not in ALLOWED_ASSET_MIME_TYPES:
+            raise HTTPException(status_code=400, detail=f"Unsupported file type for {original_name}")
+
+        _, ext = os.path.splitext(original_name)
+        safe_ext = ext.lower() if ext else ""
+        asset_id = str(uuid.uuid4())
+        stored_filename = f"{asset_id}{safe_ext}"
+        stored_path = os.path.join(assets_dir, stored_filename)
+
+        try:
+            with open(stored_path, "wb") as dest:
+                dest.write(file_bytes)
+        finally:
+            await upload.close()
+
+        asset_metadata = {
+            "asset_id": asset_id,
+            "filename": original_name,
+            "stored_filename": stored_filename,
+            "content_type": content_type or "application/octet-stream",
+            "size": file_size,
+            "uploaded_at": datetime.utcnow().isoformat(),
+            "url": f"/api/projects/{project_id}/assets/{asset_id}",
+            "preview_path": f"/assets/{stored_filename}"
+        }
+
+        project.setdefault("assets", []).append(asset_metadata)
+        uploaded_assets.append(asset_metadata)
+
+    project["last_updated"] = datetime.utcnow()
+
+    return AssetUploadResponse(
+        project_id=project_id,
+        uploaded=uploaded_assets,
+        total_assets=len(project.get("assets", []))
+    )
+
+
+@app.get("/api/projects/{project_id}/assets/{asset_id}")
+async def retrieve_project_asset(project_id: str, asset_id: str):
+    """Retrieve an uploaded asset file."""
+    if project_id not in projects_store:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project = projects_store[project_id]
+    asset = _find_asset(project, asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    asset_path = os.path.join(get_project_asset_dir(project_id, ensure_exists=False), asset["stored_filename"])
+    if not os.path.exists(asset_path):
+        raise HTTPException(status_code=404, detail="Asset file missing")
+
+    media_type = asset.get("content_type") or mimetypes.guess_type(asset_path)[0] or "application/octet-stream"
+    headers = {"Cache-Control": "public, max-age=31536000"}
+
+    return FileResponse(asset_path, media_type=media_type, filename=asset.get("filename"), headers=headers)
+
+
+@app.delete("/api/projects/{project_id}/assets/{asset_id}")
+async def delete_project_asset(project_id: str, asset_id: str):
+    """Delete an uploaded asset from a project."""
+    if project_id not in projects_store:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project = projects_store[project_id]
+    asset = _find_asset(project, asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    asset_path = os.path.join(get_project_asset_dir(project_id, ensure_exists=False), asset["stored_filename"])
+    try:
+        if os.path.exists(asset_path):
+            os.remove(asset_path)
+    except Exception as e:
+        logger.error(f"Failed to remove asset file {asset_path}: {e}")
+
+    project["assets"] = [a for a in project.get("assets", []) if a.get("asset_id") != asset_id]
+    project["last_updated"] = datetime.utcnow()
+
+    return {
+        "project_id": project_id,
+        "deleted_asset_id": asset_id,
+        "total_assets": len(project.get("assets", []))
+    }
+
+
+# Project Code Endpoints
+
+@app.get("/api/projects/{project_id}/code", response_model=ProjectCodeResponse)
+async def get_project_code(project_id: str):
+    """Retrieve the latest HTML code for a project."""
+    if project_id not in projects_store:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project = projects_store[project_id]
+    html_content = project.get("generated_code")
+    source = "generated"
+    version_id = None
+
+    if feedback_manager:
+        try:
+            session = await feedback_manager.get_feedback_session(project_id)
+            if session:
+                current_version = next(
+                    (v for v in session.versions if v.version_id == session.current_version_id),
+                    None
+                )
+                if current_version and current_version.html_content:
+                    html_content = current_version.html_content
+                    version_id = current_version.version_id
+                    source = "feedback_session"
+        except Exception as e:
+            logger.warning(f"Failed to load feedback session for code retrieval: {e}")
+
+    if not html_content:
+        raise HTTPException(status_code=404, detail="Code has not been generated yet")
+
+    return ProjectCodeResponse(
+        html_content=html_content,
+        source=source,
+        last_updated=project.get("last_updated", datetime.utcnow()),
+        version_id=version_id,
+        assets=project.get("assets", []) or None
+    )
+
+
+@app.put("/api/projects/{project_id}/code")
+async def update_project_code(project_id: str, update: ProjectCodeUpdate):
+    """Update project code via the Monaco editor."""
+    if project_id not in projects_store:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if not update.html_content or not update.html_content.strip():
+        raise HTTPException(status_code=400, detail="HTML content cannot be empty")
+
+    project = projects_store[project_id]
+    cleaned_content = clean_html_content(update.html_content)
+    project["generated_code"] = cleaned_content
+    project["last_updated"] = datetime.utcnow()
+
+    manual_note = update.message or "Manual code edit"
+    version_id = None
+
+    if feedback_manager:
+        try:
+            manual_version = await feedback_manager.create_manual_version(project_id, cleaned_content, manual_note)
+            version_id = manual_version.version_id
+
+            feedback_session = await feedback_manager.get_feedback_session(project_id)
+            if feedback_session:
+                project_feedback = project.get("feedback_session", {})
+                project_feedback.update({
+                    "session_id": feedback_session.project_id,
+                    "current_version_id": feedback_session.current_version_id,
+                    "status": feedback_session.status,
+                    "versions_count": len(feedback_session.versions)
+                })
+                # Preserve existing preview URL if we have one
+                if "preview_url" not in project_feedback or not project_feedback["preview_url"]:
+                    project_feedback["preview_url"] = project.get("preview_url")
+                project["feedback_session"] = project_feedback
+        except Exception as e:
+            logger.error(f"Failed to record manual version for project {project_id}: {e}")
+
+    preview_url = project.get("preview_url")
+    if preview_manager:
+        try:
+            updated = await preview_manager.update_preview_content(project_id, cleaned_content)
+            if not updated:
+                preview_url = await preview_manager.start_preview_server(
+                    project_id=project_id,
+                    html_content=cleaned_content,
+                    assets_dir=get_project_asset_dir(project_id)
+                )
+            else:
+                preview_url = preview_manager.get_preview_url(project_id) or preview_url
+        except Exception as e:
+            logger.warning(f"Failed to refresh preview server after manual edit: {e}")
+    project["preview_url"] = preview_url
+
+    return {
+        "project_id": project_id,
+        "version_id": version_id,
+        "message": "Code updated successfully",
+        "last_updated": project["last_updated"],
+        "preview_url": preview_url,
+        "html_content": cleaned_content
+    }
+
+
 # Feedback Endpoint
 @app.post("/api/governance/feedback")
 async def submit_feedback(
@@ -3115,7 +3488,8 @@ async def create_preview(project_id: str):
                 logger.info(f"Starting preview server for project {project_id}")
                 preview_url = await preview_manager.start_preview_server(
                     project_id=project_id,
-                    html_content=html_content
+                    html_content=html_content,
+                    assets_dir=get_project_asset_dir(project_id)
                 )
                 # Update feedback session with actual preview URL
                 feedback_session.preview_url = preview_url
@@ -3259,7 +3633,8 @@ async def get_versions(project_id: str):
                     "passed_tests": version.get("test_results", {}).get("passed_tests", 0),
                     "failed_tests": version.get("test_results", {}).get("failed_tests", 0)
                 } if version.get("test_results") else None,
-                "content_length": len(version.get("html_content", ""))
+                "content_length": len(version.get("html_content", "")),
+                "assets": project.get("assets", [])
             })
         
         return {

@@ -78,6 +78,9 @@ logs/
 temp/
 tmp/
 
+# Generated assets
+src/agentic_web_app_builder/uploads/
+
 # Secrets
 .env.local
 .env.production

@@ -36,6 +36,7 @@ class FeedbackSession:
     current_version_id: str
     preview_url: str
     status: str  # "active", "completed", "cancelled"
+    manual_notes: Optional[List[Dict[str, Any]]] = None
 
 
 class FeedbackLoopManager:
@@ -146,6 +147,47 @@ class FeedbackLoopManager:
         logger.info(f"New version {new_version.version_id} created for project {project_id}")
         return new_version.version_id
     
+    async def create_manual_version(self, project_id: str, html_content: str, note: Optional[str] = None) -> ProjectVersion:
+        """Record a manually edited version of the project.
+
+        Args:
+            project_id: ID of the project
+            html_content: Updated HTML content provided manually
+            note: Optional note describing the manual edit
+
+        Returns:
+            ProjectVersion: The created manual version
+        """
+        session = self.active_sessions.get(project_id)
+        if not session:
+            session = await self.create_feedback_session(project_id, html_content)
+
+        manual_version = ProjectVersion(
+            version_id=str(uuid4()),
+            html_content=html_content,
+            feedback_applied=note or "Manual edit",
+            test_results=None,
+            created_at=datetime.utcnow(),
+            is_current=True
+        )
+
+        for version in session.versions:
+            version.is_current = False
+        session.versions.append(manual_version)
+        session.current_version_id = manual_version.version_id
+
+        note_entry = {
+            "version_id": manual_version.version_id,
+            "note": note or "Manual edit",
+            "created_at": datetime.utcnow().isoformat()
+        }
+        session.manual_notes = session.manual_notes or []
+        session.manual_notes.append(note_entry)
+
+        await self._persist_session(session)
+        logger.info(f"Manual version {manual_version.version_id} recorded for project {project_id}")
+        return manual_version
+
     async def regenerate_with_feedback(self, html_content: str, feedback: str) -> str:
         """Use LLM to regenerate HTML content based on user feedback.
         
@@ -372,6 +414,7 @@ Please provide the updated HTML content that incorporates the requested changes.
                 "current_version_id": session.current_version_id,
                 "preview_url": session.preview_url,
                 "status": session.status,
+                "manual_notes": session.manual_notes or [],
                 "versions": [
                     {
                         "version_id": v.version_id,
@@ -426,7 +469,8 @@ Please provide the updated HTML content that incorporates the requested changes.
                 versions=versions,
                 current_version_id=session_data["current_version_id"],
                 preview_url=session_data["preview_url"],
-                status=session_data["status"]
+                status=session_data["status"],
+                manual_notes=session_data.get("manual_notes")
             )
             
             # Add to active sessions if still active

@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def test_health_monitoring():
+async def run_health_monitoring():
     """Test health monitoring functionality."""
     logger.info("Testing health monitoring...")
     
@@ -57,7 +57,7 @@ async def test_health_monitoring():
     logger.info("Health monitoring test completed")
 
 
-async def test_error_tracking():
+async def run_error_tracking():
     """Test error tracking functionality."""
     logger.info("Testing error tracking...")
     
@@ -91,7 +91,7 @@ async def test_error_tracking():
     logger.info("Error tracking test completed")
 
 
-async def test_notification_system():
+async def run_notification_system():
     """Test notification system functionality."""
     logger.info("Testing notification system...")
     
@@ -131,7 +131,7 @@ async def test_notification_system():
     logger.info("Notification system test completed")
 
 
-async def test_alert_manager():
+async def run_alert_manager():
     """Test alert manager functionality."""
     logger.info("Testing alert manager...")
     
@@ -173,10 +173,10 @@ async def run_all_tests():
     logger.info("Starting monitoring system tests...")
     
     try:
-        await test_health_monitoring()
-        await test_error_tracking()
-        await test_notification_system()
-        await test_alert_manager()
+        await run_health_monitoring()
+        await run_error_tracking()
+        await run_notification_system()
+        await run_alert_manager()
         
         logger.info("All monitoring tests completed successfully!")
         
